@@ -11,6 +11,8 @@
             --text-color: #cdd6f4;
             --accent-color: #cba6f7;
             --border-color: #45475a;
+            --btn-bg: #313244;
+            --content-bg: #11111b;
         }
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -67,22 +69,49 @@
             flex-direction: column;
             overflow: hidden;
         }
-        #file-title {
-            margin-top: 0;
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        #file-title { margin: 0; font-size: 1.5rem; }
+        .action-bar { display: flex; gap: 10px; }
+        .btn {
+            background: var(--btn-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.1s ease;
+        }
+        .btn:hover {
+            background: var(--accent-color);
+            color: #11111b;
         }
         #content {
             flex-grow: 1;
-            background: #11111b;
-            padding: 20px;
+            background: var(--content-bg);
+            padding: 25px;
             border-radius: 8px;
             white-space: pre-wrap;
             font-family: 'Courier New', Courier, monospace;
             overflow-y: auto;
             border: 1px solid var(--border-color);
-            line-height: 1.5;
+            line-height: 1.6;
+            font-size: 15px;
         }
+        /* ตกแต่งข้อความพรมต์ให้อ่านง่ายขึ้น */
+        .highlight-bracket { color: #f9e2af; font-weight: bold; }
+        .highlight-number { color: #a6e3a1; font-weight: bold; }
         .error { color: #f38ba8; }
     </style>
 </head>
@@ -94,7 +123,13 @@
     </div>
 
     <div id="viewer">
-        <h2 id="file-title">ยินดีต้อนรับ</h2>
+        <div class="header-container">
+            <h2 id="file-title">ยินดีต้อนรับ</h2>
+            <div class="action-bar" id="actions" style="display: none;">
+                <button class="btn" id="copy-btn" onclick="copyText()">📋 Copy</button>
+                <button class="btn" id="download-btn" onclick="downloadFile()">💾 Save</button>
+            </div>
+        </div>
         <div id="content">กำลังดึงข้อมูลระบบจาก GitHub...</div>
     </div>
 
@@ -102,38 +137,53 @@
         const pathParts = window.location.pathname.split('/').filter(Boolean);
         const isGitHubPages = window.location.hostname.includes('github.io');
         
-        // กำหนดโฟลเดอร์ที่เก็บไฟล์ .txt
+        // โฟลเดอร์ที่เก็บไฟล์ .txt ของคุณบนคลัง GitHub
         const FOLDER_PATH = 'instructions'; 
+        let currentText = '';
+        let currentFilename = '';
+
+        // ฟังก์ชันช่วยจัดรูปแบบข้อความให้อ่านง่าย (Simple Highlighter)
+        function formatInstructionText(text) {
+            // ป้องกัน XSS สไตล์ขี้เกียจแต่ปลอดภัย
+            let escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            // ไฮไลต์หัวข้อในวงเล็บเหลี่ยม เช่น [Crucial Boundary]
+            escaped = escaped.replace(/^\[(.*?)\]/gm, '<span class="highlight-bracket">[$1]</span>');
+            
+            // ไฮไลต์หัวข้อตัวเลข เช่น 1. 2. 3.
+            escaped = escaped.replace(/^(\s*\d+\.\s+)/gm, '<span class="highlight-number">$1</span>');
+            
+            return escaped;
+        }
 
         async function init() {
-            let owner = '';
-            let repo = '';
+            // ตั้งค่าบัญชีของคุณไว้เป็น Fallback ทันที
+            let owner = 'z888zNokbindai';
+            let repo = 'txt_ai_in';
 
             if (isGitHubPages) {
                 owner = window.location.hostname.split('.')[0];
-                repo = pathParts[0];
-            } else {
-                owner = 'z888zNokbindai';
-                repo = 'txt_ai_in';
+                repo = pathParts[0] || repo; 
             }
 
             const fileList = document.getElementById('file-list');
             const fileTitle = document.getElementById('file-title');
             const contentDiv = document.getElementById('content');
+            const actionsDiv = document.getElementById('actions');
 
             try {
-                // เพิ่ม Query String เพื่อบายพาส Cache ของ GitHub API บังคับให้ส่งข้อมูลล่าสุดเสมอ
+                // ยัด Timestamp กันเหนียว บายพาสแคชชัวร์ๆ
                 const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${FOLDER_PATH}?_=${new Date().getTime()}`;
                 
                 const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error('ไม่สามารถเชื่อมต่อ GitHub API ได้');
+                if (!response.ok) throw new Error('ไม่สามารถเชื่อมต่อ GitHub API ได้ (ตรวจสอบชื่อโฟลเดอร์ในคลัง)');
 
                 const data = await response.json();
-                const txtFiles = data.filter(file => file.type === 'file' && file.name.endsWith('.txt'));
+                const txtFiles = data.filter(file => file.type === 'file' && file.name.toLowerCase().endsWith('.txt'));
 
                 if (txtFiles.length === 0) {
                     fileList.innerHTML = '<li>ไม่พบไฟล์ .txt</li>';
-                    contentDiv.textContent = 'ไม่มีไฟล์ข้อความในโฟลเดอร์ที่ระบุ';
+                    contentDiv.textContent = `ไม่พบไฟล์นามสกุล .txt ในโฟลเดอร์ /${FOLDER_PATH}`;
                     return;
                 }
 
@@ -149,14 +199,19 @@
                         li.classList.add('active');
                         
                         fileTitle.textContent = file.name;
-                        contentDiv.textContent = 'กำลังโหลดเนื้อหา...';
+                        contentDiv.textContent = 'กำลังโหลดเนื้อหาพรมต์...';
+                        actionsDiv.style.display = 'none'; 
                         
                         try {
-                            // เพิ่มตัวทำลาย Cache สำหรับเนื้อหาไฟล์เช่นกัน เผื่อเวลาคุณเข้าไปแก้ข้อความข้างในไฟล์
                             const res = await fetch(`${file.download_url}?_=${new Date().getTime()}`);
-                            contentDiv.textContent = await res.text();
+                            currentText = await res.text();
+                            currentFilename = file.name;
+                            
+                            // แสดงผลแบบจัดฟอร์แมตให้อ่านง่าย
+                            contentDiv.innerHTML = formatInstructionText(currentText);
+                            actionsDiv.style.display = 'flex'; 
                         } catch (e) {
-                            contentDiv.textContent = 'เกิดข้อผิดพลาดในการโหลดเนื้อหาไฟล์';
+                            contentDiv.textContent = 'เกิดข้อผิดพลาดในการเปิดอ่านเนื้อหาไฟล์';
                         }
                     });
 
@@ -166,8 +221,31 @@
 
             } catch (error) {
                 fileList.innerHTML = '<li class="error">โหลดล้มเหลว</li>';
-                contentDiv.innerHTML = `<span class="error">เกิดข้อผิดพลาดในการดึงข้อมูล ลองรีเฟรชหน้าเว็บอีกครั้ง</span>`;
+                contentDiv.innerHTML = `<span class="error">${error.message}<br><br>แนะนำให้ตรวจสอบว่าสร้างโฟลเดอร์ชื่อ <b>"${FOLDER_PATH}"</b> ไว้ในคลังเรียบร้อยแล้ว</span>`;
             }
+        }
+
+        function copyText() {
+            if (!currentText) return;
+            navigator.clipboard.writeText(currentText).then(() => {
+                const copyBtn = document.getElementById('copy-btn');
+                copyBtn.textContent = '✅ Copied!';
+                setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 1500);
+            }).catch(() => {
+                alert('เบราว์เซอร์ปฏิเสธการเข้าถึงคลิปบอร์ด');
+            });
+        }
+
+        function downloadFile() {
+            if (!currentText || !currentFilename) return;
+            const blob = new Blob([currentText], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = currentFilename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         init();
