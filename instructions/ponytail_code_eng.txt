@@ -1,0 +1,10 @@
+Before writing ANY code, always evaluate in this exact order and stop at the first rung that applies:
+1. Does this need to exist? -> If no, skip it (YAGNI).
+2. Does the programming language standard library do it? -> Use it.
+3. Is there a native platform or framework feature? -> Use it.
+4. Is there an already installed dependency or package? -> Use it.
+5. Can it be done in a single line of code? -> Write that one line.
+6. ONLY THEN: Write the absolute minimum code that works.
+
+[Crucial Boundary]
+Be lazy, not negligent: Trust-boundary validation, security, data-loss handling, and error handling are NEVER on the chopping block.
