@@ -99,11 +99,10 @@
     </div>
 
     <script>
-        // ใช้ window.location เพื่อดึงชื่อ Owner และ Repo บน GitHub ให้โดยอัตโนมัติ (ไม่ต้องคอยพิมพ์เอง)
         const pathParts = window.location.pathname.split('/').filter(Boolean);
         const isGitHubPages = window.location.hostname.includes('github.io');
         
-        // กำหนดโฟลเดอร์ที่เก็บไฟล์ .txt (ถ้าเก็บไว้ที่ root เลยให้ใส่เป็น '')
+        // กำหนดโฟลเดอร์ที่เก็บไฟล์ .txt
         const FOLDER_PATH = 'instructions'; 
 
         async function init() {
@@ -114,7 +113,6 @@
                 owner = window.location.hostname.split('.')[0];
                 repo = pathParts[0];
             } else {
-                // เผื่อไว้กรณีเปิดทดสอบในเครื่องปกติ ให้กรอกชื่อสำรองไว้ตรงนี้ได้ครับ
                 owner = 'YOUR_GITHUB_USERNAME';
                 repo = 'YOUR_REPO_NAME';
             }
@@ -124,12 +122,13 @@
             const contentDiv = document.getElementById('content');
 
             try {
-                const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${FOLDER_PATH}`;
+                // เพิ่ม Query String เพื่อบายพาส Cache ของ GitHub API บังคับให้ส่งข้อมูลล่าสุดเสมอ
+                const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${FOLDER_PATH}?_=${new Date().getTime()}`;
+                
                 const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error('ไม่สามารถเชื่อมต่อ GitHub API ได้');
 
                 const data = await response.json();
-                // กรองเอาเฉพาะไฟล์ .txt
                 const txtFiles = data.filter(file => file.type === 'file' && file.name.endsWith('.txt'));
 
                 if (txtFiles.length === 0) {
@@ -139,7 +138,6 @@
                 }
 
                 fileList.innerHTML = '';
-                // เรียงลำดับชื่อไฟล์ตามตัวอักษร/ตัวเลข
                 txtFiles.sort((a, b) => a.name.localeCompare(b.name));
 
                 txtFiles.forEach((file, index) => {
@@ -154,7 +152,8 @@
                         contentDiv.textContent = 'กำลังโหลดเนื้อหา...';
                         
                         try {
-                            const res = await fetch(file.download_url);
+                            // เพิ่มตัวทำลาย Cache สำหรับเนื้อหาไฟล์เช่นกัน เผื่อเวลาคุณเข้าไปแก้ข้อความข้างในไฟล์
+                            const res = await fetch(`${file.download_url}?_=${new Date().getTime()}`);
                             contentDiv.textContent = await res.text();
                         } catch (e) {
                             contentDiv.textContent = 'เกิดข้อผิดพลาดในการโหลดเนื้อหาไฟล์';
@@ -162,14 +161,12 @@
                     });
 
                     fileList.appendChild(li);
-
-                    // คลิกไฟล์แรกให้ทันทีเพื่อเปิดแสดงผลตอนเข้าเว็บครั้งแรก
                     if (index === 0) li.click();
                 });
 
             } catch (error) {
                 fileList.innerHTML = '<li class="error">โหลดล้มเหลว</li>';
-                contentDiv.innerHTML = `<span class="error">กรุณาตรวจสอบว่าเปิดผ่าน GitHub Pages แล้วหรือยัง หรือตั้งค่าโฟลเดอร์ถูกต้องหรือไม่</span>`;
+                contentDiv.innerHTML = `<span class="error">เกิดข้อผิดพลาดในการดึงข้อมูล ลองรีเฟรชหน้าเว็บอีกครั้ง</span>`;
             }
         }
 
